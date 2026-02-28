@@ -10,6 +10,8 @@
 
 An interactive visualization tool that renders Gherkin `.feature` files as a navigable graph — giving teams a live map of their BDD test suite.
 
+![Overall Canvas](images/Overall-canvas.png)
+
 ---
 
 ## Key Highlights
@@ -19,8 +21,16 @@ An interactive visualization tool that renders Gherkin `.feature` files as a nav
 - **Shared step detection** — identical steps across scenarios are merged into a single node, revealing reuse patterns
 - **Per-scenario color coding** — each scenario's edge path gets a unique color for visual tracing
 - **Collapse / Expand** — navigate large graphs by folding feature or scenario branches
+
+  ![Collapsed Nodes](images/Collapsed-nodes.png)
+
 - **Subtree highlight** — double-click any node to isolate its full execution path
+
+  ![Scenario Tree Highlight](images/Scenario-tree-highlight.png)
+
 - **Search** — filter nodes by name or keyword; viewport pans to the first match
+
+  ![Search Nodes](images/Search-nodes.png)
 - **Undo** — Ctrl+Z reverses collapse, expand, and drag moves
 - **Minimap** — spatial overview for large graphs (300–500+ nodes)
 - **Self-contained binary** — no Node.js required on target machine
@@ -44,6 +54,8 @@ An interactive visualization tool that renders Gherkin `.feature` files as a nav
 
 - **Coverage map** — which features have background steps, how many scenarios each feature has
 - **Shared steps** — steps reused across multiple scenarios (highlighted separately in stats)
+
+  ![Node Specific Highlight](images/Node-specific-highlight.png)
 - **Scenario chains** — the exact sequence of Given/When/Then steps for any scenario
 - **Step reuse rate** — how many steps are shared vs unique (visible in statistics panel)
 - **Tag distribution** — tags shown on each scenario node for quick filtering context
