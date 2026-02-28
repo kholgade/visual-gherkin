@@ -6,12 +6,12 @@ import dagre from 'dagre';
 import { FlowNode, FlowEdge } from '@shared/types';
 
 const NODE_WIDTH: Record<string, number> = {
-  feature: 280,
-  scenario: 220,
-  background: 180,
-  step: 360,
+  feature: 180,
+  scenario: 160,
+  background: 120,
+  step: 260,
 };
-const NODE_HEIGHT = 60;
+const NODE_HEIGHT = 36;
 
 /**
  * Returns a map of nodeId → {x, y} for visible nodes only.
@@ -22,7 +22,7 @@ export function computeLayout(
   visibleEdges: FlowEdge[]
 ): Map<string, { x: number; y: number }> {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 100, marginx: 40, marginy: 40 });
+  g.setGraph({ rankdir: 'LR', nodesep: 16, ranksep: 60, marginx: 24, marginy: 24 });
   g.setDefaultEdgeLabel(() => ({}));
 
   for (const node of visibleNodes) {

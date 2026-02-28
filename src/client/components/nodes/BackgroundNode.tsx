@@ -13,8 +13,8 @@ export const BackgroundNode: React.FC<NodeProps> = ({ id, data }) => (
     background: '#f3f4f6',
     border: '2px solid #6b7280',
     borderRadius: 10,
-    padding: '8px 14px',
-    minWidth: 160,
+    padding: '5px 10px',
+    minWidth: 100,
     boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
   }}>
     <Handle type="target" position={Position.Left} />
@@ -22,10 +22,10 @@ export const BackgroundNode: React.FC<NodeProps> = ({ id, data }) => (
       onClick={(e) => { e.stopPropagation(); data.onToggle?.(id); }}
       style={{
         position: 'absolute',
-        top: 6,
-        right: 6,
-        width: 18,
-        height: 18,
+        top: 4,
+        right: 4,
+        width: 14,
+        height: 14,
         border: 'none',
         borderRadius: '50%',
         background: '#e5e7eb',
@@ -40,8 +40,8 @@ export const BackgroundNode: React.FC<NodeProps> = ({ id, data }) => (
     >
       {data.collapsed ? '▶' : '▼'}
     </button>
-    <div style={{ fontWeight: 700, fontSize: 13, color: '#374151', paddingRight: 22 }}>Background</div>
-    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+    <div style={{ fontWeight: 700, fontSize: 11, color: '#374151', paddingRight: 18 }}>Background</div>
+    <div style={{ fontSize: 9, color: '#6b7280', marginTop: 1 }}>
       {Array.isArray(data.steps) ? data.steps.length : 0} steps
     </div>
     <Handle type="source" position={Position.Right} />

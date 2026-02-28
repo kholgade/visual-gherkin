@@ -14,9 +14,17 @@ interface ControlPanelProps {
   onToggleAll: () => void;
   canUndo: boolean;
   onUndo: () => void;
+  searchQuery: string;
+  onSearchChange: (q: string) => void;
+  onSearchCommit: () => void;
+  searchMatchCount: number;
 }
 
-export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType, onHighlightType, allCollapsed, onToggleAll, canUndo, onUndo }) => {
+export const ControlPanel: React.FC<ControlPanelProps> = ({
+  graph, highlightType, onHighlightType,
+  allCollapsed, onToggleAll, canUndo, onUndo,
+  searchQuery, onSearchChange, onSearchCommit, searchMatchCount,
+}) => {
   const [expanded, setExpanded] = useState(true);
 
   if (!graph) return null;
@@ -65,6 +73,32 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType
         >
           ✕
         </button>
+      </div>
+
+      <div className="panel-section">
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => onSearchChange(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') onSearchCommit(); if (e.key === 'Escape') onSearchChange(''); }}
+            placeholder="Search nodes… (Enter to pan)"
+            style={{
+              width: '100%',
+              padding: '6px 28px 6px 8px',
+              border: `1.5px solid ${searchQuery ? '#10b981' : '#d1d5db'}`,
+              borderRadius: 6,
+              fontSize: 12,
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+          {searchQuery && (
+            <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#10b981', fontWeight: 600 }}>
+              {searchMatchCount}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="panel-section">

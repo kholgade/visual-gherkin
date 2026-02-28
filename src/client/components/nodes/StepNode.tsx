@@ -23,12 +23,12 @@ export const StepNode: React.FC<NodeProps> = ({ data }) => {
       background: colors.bg,
       border: `1.5px solid ${colors.border}`,
       borderRadius: 20,
-      padding: '4px 12px',
+      padding: '3px 8px',
       display: 'flex',
       alignItems: 'center',
-      gap: 8,
-      minWidth: 180,
-      maxWidth: 460,
+      gap: 5,
+      minWidth: 120,
+      maxWidth: 320,
       boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
     }}>
       <Handle type="target" position={Position.Left} />
@@ -36,12 +36,12 @@ export const StepNode: React.FC<NodeProps> = ({ data }) => {
         background: colors.badge,
         color: '#fff',
         borderRadius: 10,
-        padding: '1px 7px',
-        fontSize: 10,
+        padding: '0px 5px',
+        fontSize: 9,
         fontWeight: 700,
         whiteSpace: 'nowrap',
       }}>{keyword}</span>
-      <span style={{ fontSize: 11, color: '#374151', lineHeight: 1.4 }}>{data.text}</span>
+      <span style={{ fontSize: 10, color: '#374151', lineHeight: 1.3 }}>{data.text}</span>
       <Handle type="source" position={Position.Right} />
     </div>
   );

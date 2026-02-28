@@ -15,9 +15,9 @@ export const ScenarioNode: React.FC<NodeProps> = ({ id, data }) => {
     background: '#eff6ff',
     border: `2px solid ${color}`,
     borderRadius: 10,
-    padding: '10px 14px',
-    minWidth: 200,
-    maxWidth: 300,
+    padding: '5px 10px',
+    minWidth: 140,
+    maxWidth: 220,
     boxShadow: `0 2px 8px ${color}30`,
   }}>
     <Handle type="target" position={Position.Left} />
@@ -25,10 +25,10 @@ export const ScenarioNode: React.FC<NodeProps> = ({ id, data }) => {
       onClick={(e) => { e.stopPropagation(); data.onToggle?.(id); }}
       style={{
         position: 'absolute',
-        top: 6,
-        right: 6,
-        width: 18,
-        height: 18,
+        top: 4,
+        right: 4,
+        width: 14,
+        height: 14,
         border: 'none',
         borderRadius: '50%',
         background: '#bfdbfe',
@@ -43,18 +43,18 @@ export const ScenarioNode: React.FC<NodeProps> = ({ id, data }) => {
     >
       {data.collapsed ? '▶' : '▼'}
     </button>
-    <div style={{ fontWeight: 700, fontSize: 13, color: '#1e3a8a', marginBottom: 6, paddingRight: 22 }}>
+    <div style={{ fontWeight: 700, fontSize: 11, color: '#1e3a8a', marginBottom: 3, paddingRight: 18 }}>
       {data.label}
     </div>
     {Array.isArray(data.tags) && data.tags.length > 0 && (
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
         {(data.tags as string[]).map((tag, i) => (
           <span key={i} style={{
             background: '#bfdbfe',
             color: '#1e40af',
-            borderRadius: 12,
-            padding: '1px 8px',
-            fontSize: 10,
+            borderRadius: 8,
+            padding: '0px 5px',
+            fontSize: 9,
             fontWeight: 600,
           }}>{tag}</span>
         ))}

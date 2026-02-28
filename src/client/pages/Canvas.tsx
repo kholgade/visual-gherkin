@@ -6,7 +6,7 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import ReactFlow, {
-  Node, Edge, Controls, Background,
+  Node, Edge, Controls, Background, MiniMap,
   useNodesState, useReactFlow, ReactFlowProvider, NodeDragHandler,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -49,6 +49,7 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
 
   const [highlightType, setHighlightType] = useState<string | null>(null);
   const [subtreeRoot, setSubtreeRoot] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   /** Lookup subtree directly from pre-built map — O(1), no graph traversal */
   const subtreeEntry = subtreeRoot ? (graph.subtreeMap?.[subtreeRoot] ?? null) : null;
@@ -61,6 +62,7 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
       if (e.key === 'Escape') {
         setHighlightType(null);
         setSubtreeRoot(null);
+        setSearchQuery('');
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -86,6 +88,31 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
     safeEdges.forEach(e => incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1));
     return new Set(safeNodes.filter(n => n.type === 'step' && (incomingCount.get(n.id) ?? 0) > 1).map(n => n.id));
   }, [safeNodes, safeEdges]);
+
+  /** Node IDs matching the current search query */
+  const searchMatchIds = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return null;
+    const matched = new Set<string>();
+    for (const n of safeNodes) {
+      const label: string = n.data?.label ?? n.data?.text ?? '';
+      const keyword: string = n.data?.keyword ?? '';
+      if (label.toLowerCase().includes(q) || keyword.toLowerCase().includes(q)) {
+        matched.add(n.id);
+      }
+    }
+    return matched;
+  }, [searchQuery, safeNodes]);
+
+  /** Pan viewport to first visible search match */
+  const onSearchCommit = useCallback(() => {
+    if (!searchMatchIds || searchMatchIds.size === 0) return;
+    const { visibleNodeIds } = computeVisibility(safeNodes, safeEdges, collapsedIds);
+    const firstVisible = Array.from(searchMatchIds).find(id => visibleNodeIds.has(id));
+    if (firstVisible) {
+      fitView({ duration: 400, nodes: [{ id: firstVisible }], maxZoom: 1 });
+    }
+  }, [searchMatchIds, safeNodes, safeEdges, collapsedIds, fitView]);
 
   /** Snapshot current state then apply new collapsedIds with recomputed layout */
   const applyCollapse = useCallback((nextCollapsedIds: Set<string>) => {
@@ -148,6 +175,8 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
         highlightType === 'shared' ? sharedStepIds.has(n.id) : n.type === highlightType
       );
 
+      const isSearchMatch = searchMatchIds ? searchMatchIds.has(n.id) : null;
+
       let style: React.CSSProperties | undefined;
       if (subtreeNodeIds) {
         style = inSubtree
@@ -157,6 +186,10 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
         style = isTypeHighlighted
           ? { outline: '3px solid #f59e0b', borderRadius: 10, outlineOffset: 2 }
           : { opacity: 0.25 };
+      } else if (searchMatchIds) {
+        style = isSearchMatch
+          ? { outline: '3px solid #10b981', borderRadius: 10, outlineOffset: 2 }
+          : { opacity: 0.2 };
       }
 
       return {
@@ -183,7 +216,7 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
     });
 
     return { displayNodes, displayEdges };
-  }, [flowNodes, safeNodes, safeEdges, collapsedIds, toggleCollapse, highlightType, subtreeNodeIds, subtreeEdgeIds, sharedStepIds]);
+  }, [flowNodes, safeNodes, safeEdges, collapsedIds, toggleCollapse, highlightType, subtreeNodeIds, subtreeEdgeIds, sharedStepIds, searchMatchIds]);
 
   return (
     <div className="canvas-container">
@@ -207,6 +240,18 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
       >
         <Background />
         <Controls />
+        <MiniMap
+          nodeColor={(n) => {
+            if (n.type === 'feature') return '#7c3aed';
+            if (n.type === 'scenario') return (n.data?.color as string) ?? '#3b82f6';
+            if (n.type === 'background') return '#6b7280';
+            return '#93c5fd';
+          }}
+          nodeStrokeWidth={0}
+          pannable
+          zoomable
+          style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
+        />
       </ReactFlow>
       <div className="canvas-overlay">
         <ControlPanel
@@ -217,6 +262,10 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
           onToggleAll={onToggleAll}
           canUndo={canUndo}
           onUndo={undo}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchCommit={onSearchCommit}
+          searchMatchCount={searchMatchIds?.size ?? 0}
         />
       </div>
     </div>
