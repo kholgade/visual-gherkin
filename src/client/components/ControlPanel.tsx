@@ -1,38 +1,87 @@
 /**
- * Control panel component
- * Displays statistics and legend for the visualization
+ * Control panel component — collapsible floating panel
+ * Collapses to a small icon button when minimized
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { VisualizationGraph } from '@shared/types';
 
 interface ControlPanelProps {
   graph: VisualizationGraph | null;
+  highlightType: string | null;
+  onHighlightType: (type: string | null) => void;
 }
 
-export const ControlPanel: React.FC<ControlPanelProps> = ({ graph }) => {
+export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType, onHighlightType }) => {
+  const [expanded, setExpanded] = useState(true);
+
   if (!graph) return null;
+
+  const statStyle = (type: string): React.CSSProperties => ({
+    cursor: 'pointer',
+    borderRadius: 4,
+    padding: '2px 4px',
+    margin: '-2px -4px',
+    background: highlightType === type ? '#fef3c7' : 'transparent',
+    outline: highlightType === type ? '1.5px solid #f59e0b' : 'none',
+  });
+
+  if (!expanded) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        title="Show panel"
+        style={{
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'white', border: '1.5px solid #e0e0e0',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          cursor: 'pointer', fontSize: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        ☰
+      </button>
+    );
+  }
 
   return (
     <div className="control-panel">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <span style={{ fontWeight: 700, fontSize: 12, color: '#333', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Panel</span>
+        <button
+          onClick={() => setExpanded(false)}
+          title="Collapse panel"
+          style={{
+            width: 20, height: 20, borderRadius: '50%',
+            background: '#f0f0f0', border: 'none',
+            cursor: 'pointer', fontSize: 11,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 0,
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
       <div className="panel-section">
         <h3>Statistics</h3>
-        <div className="stat">
-          <label>Files:</label>
-          <span>{graph.metadata.fileCount}</span>
-        </div>
-        <div className="stat">
-          <label>Scenarios:</label>
-          <span>{graph.metadata.scenarioCount}</span>
-        </div>
-        <div className="stat">
-          <label>Nodes:</label>
-          <span>{graph.nodes.length}</span>
-        </div>
-        <div className="stat">
-          <label>Shared Steps:</label>
-          <span>{graph.edges.filter((e) => e.edgeKind === 'shared').length}</span>
-        </div>
+        {(() => {
+          const featureCount = graph.nodes.filter(n => n.type === 'feature').length;
+          const scenarioCount = graph.nodes.filter(n => n.type === 'scenario').length;
+          const backgroundCount = graph.nodes.filter(n => n.type === 'background').length;
+          const stepCount = graph.nodes.filter(n => n.type === 'step').length;
+          // Shared steps = step nodes with more than one incoming structural edge
+          const incomingCount = new Map<string, number>();
+          graph.edges.forEach(e => incomingCount.set(e.target, (incomingCount.get(e.target) ?? 0) + 1));
+          const sharedStepCount = graph.nodes.filter(n => n.type === 'step' && (incomingCount.get(n.id) ?? 0) > 1).length;
+          return <>
+            <div className="stat" style={statStyle('feature')} onClick={() => onHighlightType('feature')}><label>Features:</label><span>{featureCount}</span></div>
+            <div className="stat" style={statStyle('scenario')} onClick={() => onHighlightType('scenario')}><label>Scenarios:</label><span>{scenarioCount}</span></div>
+            <div className="stat" style={statStyle('background')} onClick={() => onHighlightType('background')}><label>Backgrounds:</label><span>{backgroundCount}</span></div>
+            <div className="stat" style={statStyle('step')} onClick={() => onHighlightType('step')}><label>Steps:</label><span>{stepCount}</span></div>
+            <div className="stat" style={statStyle('shared')} onClick={() => onHighlightType('shared')}><label>Shared Steps:</label><span>{sharedStepCount}</span></div>
+          </>;
+        })()}
       </div>
 
       <div className="panel-section">
@@ -51,11 +100,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ graph }) => {
             <span>Background</span>
           </div>
           <div className="legend-item">
-            <div style={{ width: 14, height: 14, background: '#eff6ff', border: '2px solid #3b82f6', borderRadius: 10 }} />
-            <span>Step (Given=blue, When=amber, Then=green)</span>
+            <div style={{ width: 14, height: 14, borderRadius: 10, background: '#eff6ff', border: '2px solid #3b82f6' }} />
+            <span>Step</span>
           </div>
           <div className="legend-item">
-            <div style={{ width: 24, height: 2, background: '#667eea', borderTop: '2px dashed #667eea' }} />
+            <div style={{ width: 24, height: 0, borderTop: '2px dashed #667eea' }} />
             <span>Shared Step</span>
           </div>
         </div>
@@ -64,9 +113,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ graph }) => {
       <div className="panel-section">
         <h3>Instructions</h3>
         <ul className="instructions">
+          <li>▼/▶ on node to collapse/expand</li>
           <li>Drag nodes to rearrange</li>
           <li>Scroll to zoom</li>
-          <li>Dashed blue lines = shared steps across scenarios</li>
         </ul>
       </div>
     </div>
