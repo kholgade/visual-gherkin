@@ -1,25 +1,36 @@
 /**
  * Canvas page — renders the Gherkin hierarchy as a React Flow graph.
  * Nodes can be collapsed/expanded by clicking the toggle button on each node.
+ * Layout recomputes on every collapse change via client-side Dagre.
  */
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import ReactFlow, { Node, Edge, Controls, Background, useNodesState } from 'reactflow';
+import ReactFlow, { Node, Edge, Controls, Background, useNodesState, useReactFlow, ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { VisualizationGraph } from '@shared/types';
 import { nodeTypes } from '@client/components/nodes';
 import { ControlPanel } from '@client/components/ControlPanel';
 import { computeVisibility } from '@client/utils/collapseUtils';
+import { computeLayout } from '@client/utils/layoutUtils';
 
 interface CanvasProps {
   graph: VisualizationGraph;
 }
 
-export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
+/** Inner component — must be inside ReactFlowProvider to use useReactFlow */
+const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
   const safeNodes = graph?.nodes ?? [];
   const safeEdges = graph?.edges ?? [];
+  const { fitView } = useReactFlow();
 
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  /** IDs of nodes that can be collapsed (feature, scenario, background) */
+  const collapsibleIds = useMemo(() =>
+    safeNodes.filter(n => n.type !== 'step').map(n => n.id),
+    [safeNodes]
+  );
+
+  // Default: all collapsible nodes collapsed
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set(collapsibleIds));
   const [highlightType, setHighlightType] = useState<string | null>(null);
   const [subtreeRoot, setSubtreeRoot] = useState<string | null>(null);
 
@@ -35,7 +46,7 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
         setSubtreeRoot(null);
       }
     };
-    window.addEventListener('keydown', handler, true); // capture phase — before React Flow
+    window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
   }, []);
 
@@ -45,7 +56,7 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
   }, []);
 
   const onHighlightType = useCallback((type: string | null) => {
-    setHighlightType(prev => prev === type ? null : type); // toggle off if same
+    setHighlightType(prev => prev === type ? null : type);
   }, []);
 
   // Precompute shared step IDs (step nodes with >1 incoming edge)
@@ -63,12 +74,6 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
     });
   }, []);
 
-  /** IDs of nodes that can be collapsed (feature, scenario, background) */
-  const collapsibleIds = useMemo(() =>
-    safeNodes.filter(n => n.type !== 'step').map(n => n.id),
-    [safeNodes]
-  );
-
   const allCollapsed = collapsibleIds.length > 0 && collapsibleIds.every(id => collapsedIds.has(id));
 
   const onToggleAll = useCallback(() => {
@@ -79,12 +84,28 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
     id: node.id,
     type: node.type,
     position: node.position,
-    data: { ...node.data, collapsed: false, onToggle: toggleCollapse },
+    data: { ...node.data, collapsed: collapsibleIds.includes(node.id), onToggle: toggleCollapse },
   })), [graph]);
 
-  const [flowNodes, , onNodesChange] = useNodesState(initialNodes);
+  const [flowNodes, setNodes, onNodesChange] = useNodesState(initialNodes);
 
-  // Derive display nodes and edges from collapse state — preserves drag positions
+  // Recompute layout whenever collapse state changes, then fitView
+  useEffect(() => {
+    const { visibleNodeIds, hiddenEdgeIds } = computeVisibility(safeNodes, safeEdges, collapsedIds);
+    const visibleFlowNodes = safeNodes.filter(n => visibleNodeIds.has(n.id));
+    const visibleFlowEdges = safeEdges.filter(e => !hiddenEdgeIds.has(e.id));
+    const positions = computeLayout(visibleFlowNodes, visibleFlowEdges);
+
+    setNodes(prev => prev.map(n => {
+      const pos = positions.get(n.id);
+      return pos ? { ...n, position: pos } : n;
+    }));
+
+    // fitView after positions settle
+    requestAnimationFrame(() => fitView({ duration: 300 }));
+  }, [collapsedIds, safeNodes, safeEdges]);
+
+  // Derive display nodes and edges from collapse state
   const { displayNodes, displayEdges } = useMemo(() => {
     const { visibleNodeIds, hiddenEdgeIds } = computeVisibility(safeNodes, safeEdges, collapsedIds);
 
@@ -153,3 +174,10 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
     </div>
   );
 };
+
+/** Wrap in ReactFlowProvider so useReactFlow is available inside CanvasInner */
+export const Canvas: React.FC<CanvasProps> = (props) => (
+  <ReactFlowProvider>
+    <CanvasInner {...props} />
+  </ReactFlowProvider>
+);
