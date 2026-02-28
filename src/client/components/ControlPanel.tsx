@@ -10,9 +10,11 @@ interface ControlPanelProps {
   graph: VisualizationGraph | null;
   highlightType: string | null;
   onHighlightType: (type: string | null) => void;
+  allCollapsed: boolean;
+  onToggleAll: () => void;
 }
 
-export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType, onHighlightType }) => {
+export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType, onHighlightType, allCollapsed, onToggleAll }) => {
   const [expanded, setExpanded] = useState(true);
 
   if (!graph) return null;
@@ -111,12 +113,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType
       </div>
 
       <div className="panel-section">
-        <h3>Instructions</h3>
-        <ul className="instructions">
-          <li>▼/▶ on node to collapse/expand</li>
-          <li>Drag nodes to rearrange</li>
-          <li>Scroll to zoom</li>
-        </ul>
+        <button
+          onClick={onToggleAll}
+          style={{
+            width: '100%',
+            padding: '6px 0',
+            border: '1.5px solid #d1d5db',
+            borderRadius: 6,
+            background: allCollapsed ? '#f0fdf4' : '#fef9c3',
+            color: allCollapsed ? '#166534' : '#854d0e',
+            fontWeight: 600,
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          {allCollapsed ? '▶ Expand All' : '▼ Collapse All'}
+        </button>
       </div>
     </div>
   );

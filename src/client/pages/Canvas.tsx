@@ -63,6 +63,18 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
     });
   }, []);
 
+  /** IDs of nodes that can be collapsed (feature, scenario, background) */
+  const collapsibleIds = useMemo(() =>
+    safeNodes.filter(n => n.type !== 'step').map(n => n.id),
+    [safeNodes]
+  );
+
+  const allCollapsed = collapsibleIds.length > 0 && collapsibleIds.every(id => collapsedIds.has(id));
+
+  const onToggleAll = useCallback(() => {
+    setCollapsedIds(allCollapsed ? new Set() : new Set(collapsibleIds));
+  }, [allCollapsed, collapsibleIds]);
+
   const initialNodes: Node[] = useMemo(() => safeNodes.map((node) => ({
     id: node.id,
     type: node.type,
@@ -136,7 +148,7 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
         <Controls />
       </ReactFlow>
       <div className="canvas-overlay">
-        <ControlPanel graph={graph} highlightType={highlightType} onHighlightType={onHighlightType} />
+        <ControlPanel graph={graph} highlightType={highlightType} onHighlightType={onHighlightType} allCollapsed={allCollapsed} onToggleAll={onToggleAll} />
       </div>
     </div>
   );
