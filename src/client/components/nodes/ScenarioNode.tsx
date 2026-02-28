@@ -7,18 +7,20 @@
 import React from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
 
-export const ScenarioNode: React.FC<NodeProps> = ({ id, data }) => (
+export const ScenarioNode: React.FC<NodeProps> = ({ id, data }) => {
+  const color = (data.color as string) ?? '#3b82f6';
+  return (
   <div style={{
     position: 'relative',
     background: '#eff6ff',
-    border: '2px solid #3b82f6',
+    border: `2px solid ${color}`,
     borderRadius: 10,
     padding: '10px 14px',
     minWidth: 200,
     maxWidth: 300,
-    boxShadow: '0 2px 8px rgba(59,130,246,0.12)',
+    boxShadow: `0 2px 8px ${color}30`,
   }}>
-    <Handle type="target" position={Position.Top} />
+    <Handle type="target" position={Position.Left} />
     <button
       onClick={(e) => { e.stopPropagation(); data.onToggle?.(id); }}
       style={{
@@ -58,6 +60,7 @@ export const ScenarioNode: React.FC<NodeProps> = ({ id, data }) => (
         ))}
       </div>
     )}
-    <Handle type="source" position={Position.Bottom} />
+    <Handle type="source" position={Position.Right} />
   </div>
-);
+  );
+};

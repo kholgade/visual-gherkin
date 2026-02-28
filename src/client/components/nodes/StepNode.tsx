@@ -31,7 +31,7 @@ export const StepNode: React.FC<NodeProps> = ({ data }) => {
       maxWidth: 460,
       boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
     }}>
-      <Handle type="target" position={Position.Top} />
+      <Handle type="target" position={Position.Left} />
       <span style={{
         background: colors.badge,
         color: '#fff',
@@ -42,7 +42,7 @@ export const StepNode: React.FC<NodeProps> = ({ data }) => {
         whiteSpace: 'nowrap',
       }}>{keyword}</span>
       <span style={{ fontSize: 11, color: '#374151', lineHeight: 1.4 }}>{data.text}</span>
-      <Handle type="source" position={Position.Bottom} />
+      <Handle type="source" position={Position.Right} />
     </div>
   );
 };

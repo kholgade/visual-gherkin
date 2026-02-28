@@ -51,8 +51,7 @@ export interface FlowEdge {
   target: string;
   edgeKind: 'structural' | 'shared';
   data: {
-    sharedSteps?: string[];
-    weight?: number;
+    color?: string;
   };
 }
 

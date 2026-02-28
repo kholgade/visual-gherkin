@@ -4,6 +4,7 @@
  * Identical steps across scenarios share a single node — multiple edges point to it
  */
 
+import dagre from 'dagre';
 import {
   ParsedFeature,
   ActionStep,
@@ -11,6 +12,51 @@ import {
   FlowEdge,
   VisualizationGraph,
 } from '../../../shared/types';
+
+/** Node dimensions used by Dagre for layout calculations */
+const NODE_WIDTH: Record<string, number> = {
+  feature: 280,
+  scenario: 220,
+  background: 180,
+  step: 360,
+};
+const NODE_HEIGHT = 60;
+
+/**
+ * Apply Dagre layout to nodes in-place.
+ * Uses LR (left-to-right) direction for wide graphs.
+ */
+function applyDagreLayout(nodes: FlowNode[], edges: FlowEdge[]): void {
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 100, marginx: 40, marginy: 40 });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  for (const node of nodes) {
+    const w = NODE_WIDTH[node.type] ?? 220;
+    g.setNode(node.id, { width: w, height: NODE_HEIGHT });
+  }
+  for (const edge of edges) {
+    g.setEdge(edge.source, edge.target);
+  }
+
+  dagre.layout(g);
+
+  for (const node of nodes) {
+    const pos = g.node(node.id);
+    if (pos) {
+      node.position = { x: pos.x - (NODE_WIDTH[node.type] ?? 220) / 2, y: pos.y - NODE_HEIGHT / 2 };
+    }
+  }
+}
+
+/**
+ * Generate a visually distinct color for a scenario given its index and total count.
+ * Distributes hues evenly across 360°, with fixed saturation and lightness for readability.
+ */
+function scenarioColor(index: number, total: number): string {
+  const hue = Math.round((index / Math.max(total, 1)) * 360);
+  return `hsl(${hue}, 70%, 45%)`;
+}
 
 /** Normalize step for deduplication key */
 function stepKey(keyword: string, text: string): string {
@@ -51,40 +97,39 @@ export function buildVisualizationGraph(
   const nextNodeId = () => `n-${nodeCounter++}`;
   const nextEdgeId = () => `e-${edgeCounter++}`;
 
-  const addEdge = (source: string, target: string): void => {
-    edges.push({ id: nextEdgeId(), source, target, edgeKind: 'structural', data: {} });
+  const addEdge = (source: string, target: string, color?: string): void => {
+    edges.push({ id: nextEdgeId(), source, target, edgeKind: 'structural', data: { color } });
   };
 
   // Global shared step registry: stepKey → node ID
-  // A step node is created once; subsequent scenarios just get an edge to it
   const sharedStepRegistry = new Map<string, string>();
 
-  for (let fileIndex = 0; fileIndex < features.length; fileIndex++) {
-    const feature = features[fileIndex];
-    const featureX = fileIndex * 1400;
+  const totalScenarios = features.reduce((sum, f) => sum + f.scenarios.length, 0);
+  let scenarioColorIndex = 0;
 
+  for (const feature of features) {
     // --- Feature node ---
     const featureNodeId = nextNodeId();
     nodes.push({
       id: featureNodeId,
       type: 'feature',
       data: { label: feature.feature, file: feature.file },
-      position: { x: featureX, y: 0 },
+      position: { x: 0, y: 0 },
     });
 
-    // --- Background node (left of feature, clearly separated) ---
+    // --- Background node (neutral gray) ---
     if (feature.background.length > 0) {
       const bgNodeId = nextNodeId();
       nodes.push({
         id: bgNodeId,
         type: 'background',
         data: { label: 'Background', steps: feature.background },
-        position: { x: featureX - 500, y: 160 },
+        position: { x: 0, y: 0 },
       });
       addEdge(featureNodeId, bgNodeId);
 
       let prevBgNodeId = bgNodeId;
-      feature.background.forEach((step, i) => {
+      feature.background.forEach((step) => {
         const key = stepKey(step.type, step.text);
         let stepNodeId = sharedStepRegistry.get(key);
         if (!stepNodeId) {
@@ -94,7 +139,7 @@ export function buildVisualizationGraph(
             id: stepNodeId,
             type: 'step',
             data: { keyword: step.type, text: step.text },
-            position: { x: featureX - 500, y: 320 + i * 100 },
+            position: { x: 0, y: 0 },
           });
         }
         addEdge(prevBgNodeId, stepNodeId);
@@ -102,30 +147,23 @@ export function buildVisualizationGraph(
       });
     }
 
-    // --- Scenario nodes ---
-    const scenarioCount = feature.scenarios.length;
-    const scenarioSpacing = 420;
-    const scenariosWidth = (scenarioCount - 1) * scenarioSpacing;
-
-    feature.scenarios.forEach((scenario, scenarioIndex) => {
-      const scenarioX = featureX - scenariosWidth / 2 + scenarioIndex * scenarioSpacing;
-      const scenarioY = 160;
+    // --- Scenario nodes — each gets a unique color ---
+    feature.scenarios.forEach((scenario) => {
+      const color = scenarioColor(scenarioColorIndex++, totalScenarios);
 
       const scenarioNodeId = nextNodeId();
       nodes.push({
         id: scenarioNodeId,
         type: 'scenario',
-        data: { label: scenario.name, tags: scenario.tags ?? [] },
-        position: { x: scenarioX, y: scenarioY },
+        data: { label: scenario.name, tags: scenario.tags ?? [], color },
+        position: { x: 0, y: 0 },
       });
-      addEdge(featureNodeId, scenarioNodeId);
+      addEdge(featureNodeId, scenarioNodeId, color);
 
-      // Chain steps sequentially: scenario → step1 → step2 → step3 ...
       let prevNodeId = scenarioNodeId;
-      scenario.steps.forEach((step, stepIndex) => {
+      scenario.steps.forEach((step) => {
         const key = stepKey(step.type, step.text);
         let stepNodeId = sharedStepRegistry.get(key);
-
         if (!stepNodeId) {
           stepNodeId = nextNodeId();
           sharedStepRegistry.set(key, stepNodeId);
@@ -133,14 +171,17 @@ export function buildVisualizationGraph(
             id: stepNodeId,
             type: 'step',
             data: { keyword: step.type, text: step.text },
-            position: { x: scenarioX, y: 320 + stepIndex * 100 },
+            position: { x: 0, y: 0 },
           });
         }
-        addEdge(prevNodeId, stepNodeId);
+        addEdge(prevNodeId, stepNodeId, color);
         prevNodeId = stepNodeId;
       });
     });
   }
+
+  // Apply Dagre auto-layout
+  applyDagreLayout(nodes, edges);
 
   const commonActions = extractCommonActions(features);
   const scenarioCount = features.reduce((sum, f) => sum + f.scenarios.length, 0);

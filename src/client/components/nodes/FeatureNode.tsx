@@ -18,7 +18,7 @@ export const FeatureNode: React.FC<NodeProps> = ({ id, data }) => (
     maxWidth: 320,
     boxShadow: '0 2px 8px rgba(124,58,237,0.15)',
   }}>
-    <Handle type="target" position={Position.Top} />
+    <Handle type="target" position={Position.Left} />
     <button
       onClick={(e) => { e.stopPropagation(); data.onToggle?.(id); }}
       style={{
@@ -47,6 +47,6 @@ export const FeatureNode: React.FC<NodeProps> = ({ id, data }) => (
     <div style={{ fontSize: 10, color: '#7c3aed', wordBreak: 'break-all' }}>
       {data.file}
     </div>
-    <Handle type="source" position={Position.Bottom} />
+    <Handle type="source" position={Position.Right} />
   </div>
 );

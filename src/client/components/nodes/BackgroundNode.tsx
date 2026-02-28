@@ -17,7 +17,7 @@ export const BackgroundNode: React.FC<NodeProps> = ({ id, data }) => (
     minWidth: 160,
     boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
   }}>
-    <Handle type="target" position={Position.Top} />
+    <Handle type="target" position={Position.Left} />
     <button
       onClick={(e) => { e.stopPropagation(); data.onToggle?.(id); }}
       style={{
@@ -44,6 +44,6 @@ export const BackgroundNode: React.FC<NodeProps> = ({ id, data }) => (
     <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
       {Array.isArray(data.steps) ? data.steps.length : 0} steps
     </div>
-    <Handle type="source" position={Position.Bottom} />
+    <Handle type="source" position={Position.Right} />
   </div>
 );

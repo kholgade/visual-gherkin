@@ -11,7 +11,6 @@ export function computeVisibility(
   edges: FlowEdge[],
   collapsedIds: Set<string>
 ): { visibleNodeIds: Set<string>; hiddenEdgeIds: Set<string> } {
-  // Build child map from structural edges only
   const childrenOf = new Map<string, string[]>();
   const parentsOf = new Map<string, string[]>();
 
@@ -22,25 +21,30 @@ export function computeVisibility(
     parentsOf.get(edge.target)!.push(edge.source);
   }
 
-  // Root nodes = nodes with no parents
-  const roots = nodes.filter(n => !parentsOf.has(n.id)).map(n => n.id);
+  // Root nodes = nodes with no parents (Feature nodes)
+  const rootIds = new Set(nodes.filter(n => !parentsOf.has(n.id)).map(n => n.id));
 
-  // BFS
-  const visibleNodeIds = new Set<string>(roots);
-  const queue = [...roots];
+  // A node is visible if:
+  //   - it is a root, OR
+  //   - it has at least one parent that is visible AND not collapsed
+  // We iterate until stable (handles shared nodes with multiple parents correctly)
+  const visibleNodeIds = new Set<string>(rootIds);
+  let changed = true;
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    if (collapsedIds.has(current)) continue; // don't traverse into collapsed node's children
-    for (const child of childrenOf.get(current) ?? []) {
-      if (!visibleNodeIds.has(child)) {
-        visibleNodeIds.add(child);
-        queue.push(child);
+  while (changed) {
+    changed = false;
+    for (const node of nodes) {
+      if (visibleNodeIds.has(node.id)) continue;
+      const parents = parentsOf.get(node.id) ?? [];
+      const reachable = parents.some(p => visibleNodeIds.has(p) && !collapsedIds.has(p));
+      if (reachable) {
+        visibleNodeIds.add(node.id);
+        changed = true;
       }
     }
   }
 
-  // Hidden edges: source is collapsed, or source/target not visible
+  // Hidden edges: source collapsed, or either endpoint not visible
   const hiddenEdgeIds = new Set<string>();
   for (const edge of edges) {
     if (collapsedIds.has(edge.source) || !visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) {

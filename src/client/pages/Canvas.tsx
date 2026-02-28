@@ -108,10 +108,9 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
         target: edge.target,
         hidden: hiddenEdgeIds.has(edge.id),
         style: {
-          stroke: edge.edgeKind === 'shared' ? '#667eea' : '#ccc',
-          strokeDasharray: edge.edgeKind === 'shared' ? '5,5' : undefined,
-          strokeWidth: subtreeIds ? (inSubtreeEdge ? 2 : 0.5) : 1,
-          opacity: subtreeIds ? (inSubtreeEdge ? 1 : 0.2) : 1,
+          stroke: edge.data?.color ?? '#ccc',
+          strokeWidth: subtreeIds ? (inSubtreeEdge ? 2.5 : 0.5) : 1.5,
+          opacity: subtreeIds ? (inSubtreeEdge ? 1 : 0.15) : 0.8,
         },
       };
     });
