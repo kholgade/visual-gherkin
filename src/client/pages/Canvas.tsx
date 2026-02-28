@@ -88,8 +88,10 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
         style = inSubtree
           ? { outline: '3px solid #3b82f6', borderRadius: 10, outlineOffset: 2 }
           : { opacity: 0.25 };
-      } else if (isTypeHighlighted) {
-        style = { outline: '3px solid #f59e0b', borderRadius: 10, outlineOffset: 2 };
+      } else if (highlightType !== null) {
+        style = isTypeHighlighted
+          ? { outline: '3px solid #f59e0b', borderRadius: 10, outlineOffset: 2 }
+          : { opacity: 0.25 };
       }
 
       return {
@@ -110,13 +112,13 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
         style: {
           stroke: edge.data?.color ?? '#ccc',
           strokeWidth: subtreeIds ? (inSubtreeEdge ? 2.5 : 0.5) : 1.5,
-          opacity: subtreeIds ? (inSubtreeEdge ? 1 : 0.15) : 0.8,
+          opacity: subtreeIds ? (inSubtreeEdge ? 1 : 0.15) : highlightType ? 0.15 : 0.8,
         },
       };
     });
 
     return { displayNodes, displayEdges };
-  }, [flowNodes, safeNodes, safeEdges, collapsedIds, toggleCollapse]);
+  }, [flowNodes, safeNodes, safeEdges, collapsedIds, toggleCollapse, highlightType, subtreeIds, sharedStepIds]);
 
   return (
     <div className="canvas-container">
