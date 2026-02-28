@@ -12,9 +12,11 @@ interface ControlPanelProps {
   onHighlightType: (type: string | null) => void;
   allCollapsed: boolean;
   onToggleAll: () => void;
+  canUndo: boolean;
+  onUndo: () => void;
 }
 
-export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType, onHighlightType, allCollapsed, onToggleAll }) => {
+export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType, onHighlightType, allCollapsed, onToggleAll, canUndo, onUndo }) => {
   const [expanded, setExpanded] = useState(true);
 
   if (!graph) return null;
@@ -112,11 +114,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType
         </div>
       </div>
 
-      <div className="panel-section">
+      <div className="panel-section" style={{ display: 'flex', gap: 8 }}>
         <button
           onClick={onToggleAll}
           style={{
-            width: '100%',
+            flex: 1,
             padding: '6px 0',
             border: '1.5px solid #d1d5db',
             borderRadius: 6,
@@ -128,6 +130,23 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ graph, highlightType
           }}
         >
           {allCollapsed ? '▶ Expand All' : '▼ Collapse All'}
+        </button>
+        <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+          style={{
+            padding: '6px 10px',
+            border: '1.5px solid #d1d5db',
+            borderRadius: 6,
+            background: canUndo ? '#f0f9ff' : '#f9fafb',
+            color: canUndo ? '#1e40af' : '#9ca3af',
+            fontWeight: 600,
+            fontSize: 12,
+            cursor: canUndo ? 'pointer' : 'not-allowed',
+          }}
+        >
+          ↩ Undo
         </button>
       </div>
     </div>
