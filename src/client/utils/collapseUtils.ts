@@ -55,27 +55,3 @@ export function computeVisibility(
   return { visibleNodeIds, hiddenEdgeIds };
 }
 
-/**
- * BFS downward from a root node — returns all node IDs reachable from it
- * via outgoing edges. Does NOT skip shared nodes; only traverses from this root.
- */
-export function computeSubtree(rootId: string, edges: FlowEdge[]): Set<string> {
-  const childrenOf = new Map<string, string[]>();
-  for (const edge of edges) {
-    if (!childrenOf.has(edge.source)) childrenOf.set(edge.source, []);
-    childrenOf.get(edge.source)!.push(edge.target);
-  }
-
-  const result = new Set<string>([rootId]);
-  const queue = [rootId];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    for (const child of childrenOf.get(current) ?? []) {
-      if (!result.has(child)) {
-        result.add(child);
-        queue.push(child);
-      }
-    }
-  }
-  return result;
-}

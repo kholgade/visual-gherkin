@@ -9,7 +9,7 @@ import 'reactflow/dist/style.css';
 import { VisualizationGraph } from '@shared/types';
 import { nodeTypes } from '@client/components/nodes';
 import { ControlPanel } from '@client/components/ControlPanel';
-import { computeVisibility, computeSubtree } from '@client/utils/collapseUtils';
+import { computeVisibility } from '@client/utils/collapseUtils';
 
 interface CanvasProps {
   graph: VisualizationGraph;
@@ -23,10 +23,10 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
   const [highlightType, setHighlightType] = useState<string | null>(null);
   const [subtreeRoot, setSubtreeRoot] = useState<string | null>(null);
 
-  const subtreeIds = useMemo(() =>
-    subtreeRoot ? computeSubtree(subtreeRoot, safeEdges) : null,
-    [subtreeRoot, safeEdges]
-  );
+  /** Lookup subtree directly from pre-built map — O(1), no graph traversal */
+  const subtreeEntry = subtreeRoot ? (graph.subtreeMap?.[subtreeRoot] ?? null) : null;
+  const subtreeNodeIds = subtreeEntry ? new Set(subtreeEntry.nodeIds) : null;
+  const subtreeEdgeIds = subtreeEntry ? new Set(subtreeEntry.edgeIds) : null;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -40,8 +40,8 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
   }, []);
 
   const onNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
-    setSubtreeRoot(prev => prev === node.id ? null : node.id); // toggle off if same
-    setHighlightType(null); // clear type highlight when selecting subtree
+    setSubtreeRoot(prev => prev === node.id ? null : node.id);
+    setHighlightType(null);
   }, []);
 
   const onHighlightType = useCallback((type: string | null) => {
@@ -77,14 +77,13 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
     const { visibleNodeIds, hiddenEdgeIds } = computeVisibility(safeNodes, safeEdges, collapsedIds);
 
     const displayNodes = flowNodes.map(n => {
-      const inSubtree = subtreeIds ? subtreeIds.has(n.id) : null;
+      const inSubtree = subtreeNodeIds ? subtreeNodeIds.has(n.id) : null;
       const isTypeHighlighted = highlightType !== null && (
         highlightType === 'shared' ? sharedStepIds.has(n.id) : n.type === highlightType
       );
 
       let style: React.CSSProperties | undefined;
-      if (subtreeIds) {
-        // Subtree mode: highlight members, dim non-members
+      if (subtreeNodeIds) {
         style = inSubtree
           ? { outline: '3px solid #3b82f6', borderRadius: 10, outlineOffset: 2 }
           : { opacity: 0.25 };
@@ -103,7 +102,7 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
     });
 
     const displayEdges: Edge[] = safeEdges.map(edge => {
-      const inSubtreeEdge = subtreeIds ? subtreeIds.has(edge.source) && subtreeIds.has(edge.target) : null;
+      const inSubtreeEdge = subtreeEdgeIds ? subtreeEdgeIds.has(edge.id) : null;
       return {
         id: edge.id,
         source: edge.source,
@@ -111,14 +110,14 @@ export const Canvas: React.FC<CanvasProps> = ({ graph }) => {
         hidden: hiddenEdgeIds.has(edge.id),
         style: {
           stroke: edge.data?.color ?? '#ccc',
-          strokeWidth: subtreeIds ? (inSubtreeEdge ? 2.5 : 0.5) : 1.5,
-          opacity: subtreeIds ? (inSubtreeEdge ? 1 : 0.15) : highlightType ? 0.15 : 0.8,
+          strokeWidth: subtreeEdgeIds ? (inSubtreeEdge ? 2.5 : 0.5) : 1.5,
+          opacity: subtreeEdgeIds ? (inSubtreeEdge ? 1 : 0.15) : highlightType ? 0.15 : 0.8,
         },
       };
     });
 
     return { displayNodes, displayEdges };
-  }, [flowNodes, safeNodes, safeEdges, collapsedIds, toggleCollapse, highlightType, subtreeIds, sharedStepIds]);
+  }, [flowNodes, safeNodes, safeEdges, collapsedIds, toggleCollapse, highlightType, subtreeNodeIds, subtreeEdgeIds, sharedStepIds]);
 
   return (
     <div className="canvas-container">

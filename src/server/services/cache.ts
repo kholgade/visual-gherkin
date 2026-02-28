@@ -72,6 +72,11 @@ export function isCacheValid(
     return false;
   }
 
+  // Invalidate if cache predates subtreeMap (schema migration)
+  if (!cache.subtreeMap) {
+    return false;
+  }
+
   const cachedHashes = cache.metadata.fileHashes;
 
   // Check if all current files match cached hashes

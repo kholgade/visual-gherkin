@@ -10,6 +10,7 @@ import {
   ActionStep,
   FlowNode,
   FlowEdge,
+  SubtreeEntry,
   VisualizationGraph,
 } from '../../../shared/types';
 
@@ -97,8 +98,13 @@ export function buildVisualizationGraph(
   const nextNodeId = () => `n-${nodeCounter++}`;
   const nextEdgeId = () => `e-${edgeCounter++}`;
 
-  const addEdge = (source: string, target: string, color?: string): void => {
-    edges.push({ id: nextEdgeId(), source, target, edgeKind: 'structural', data: { color } });
+  /** subtreeMap: nodeId → { nodeIds, edgeIds } built inline during construction */
+  const subtreeMap: Record<string, SubtreeEntry> = {};
+
+  const addEdge = (source: string, target: string, color?: string): string => {
+    const id = nextEdgeId();
+    edges.push({ id, source, target, edgeKind: 'structural', data: { color } });
+    return id;
   };
 
   // Global shared step registry: stepKey → node ID
@@ -117,7 +123,12 @@ export function buildVisualizationGraph(
       position: { x: 0, y: 0 },
     });
 
+    // Subtree entry for the feature — accumulates all child node/edge IDs
+    const featureEntry: SubtreeEntry = { nodeIds: [featureNodeId], edgeIds: [] };
+
     // --- Background node (neutral gray) ---
+    let backgroundNodeIds: string[] = [];
+    let backgroundEdgeIds: string[] = [];
     if (feature.background.length > 0) {
       const bgNodeId = nextNodeId();
       nodes.push({
@@ -126,7 +137,9 @@ export function buildVisualizationGraph(
         data: { label: 'Background', steps: feature.background },
         position: { x: 0, y: 0 },
       });
-      addEdge(featureNodeId, bgNodeId);
+      const bgEdgeId = addEdge(featureNodeId, bgNodeId);
+      backgroundNodeIds = [bgNodeId];
+      backgroundEdgeIds = [bgEdgeId];
 
       let prevBgNodeId = bgNodeId;
       feature.background.forEach((step) => {
@@ -142,9 +155,14 @@ export function buildVisualizationGraph(
             position: { x: 0, y: 0 },
           });
         }
-        addEdge(prevBgNodeId, stepNodeId);
+        const eid = addEdge(prevBgNodeId, stepNodeId);
+        backgroundNodeIds.push(stepNodeId);
+        backgroundEdgeIds.push(eid);
         prevBgNodeId = stepNodeId;
       });
+
+      featureEntry.nodeIds.push(...backgroundNodeIds);
+      featureEntry.edgeIds.push(...backgroundEdgeIds);
     }
 
     // --- Scenario nodes — each gets a unique color ---
@@ -158,7 +176,13 @@ export function buildVisualizationGraph(
         data: { label: scenario.name, tags: scenario.tags ?? [], color },
         position: { x: 0, y: 0 },
       });
-      addEdge(featureNodeId, scenarioNodeId, color);
+      const scenToFeatureEdgeId = addEdge(featureNodeId, scenarioNodeId, color);
+
+      // Scenario subtree includes background + its own steps
+      const scenEntry: SubtreeEntry = {
+        nodeIds: [...backgroundNodeIds, scenarioNodeId],
+        edgeIds: [...backgroundEdgeIds, scenToFeatureEdgeId],
+      };
 
       let prevNodeId = scenarioNodeId;
       scenario.steps.forEach((step) => {
@@ -174,10 +198,20 @@ export function buildVisualizationGraph(
             position: { x: 0, y: 0 },
           });
         }
-        addEdge(prevNodeId, stepNodeId, color);
+        const eid = addEdge(prevNodeId, stepNodeId, color);
+        scenEntry.nodeIds.push(stepNodeId);
+        scenEntry.edgeIds.push(eid);
         prevNodeId = stepNodeId;
       });
+
+      subtreeMap[scenarioNodeId] = scenEntry;
+
+      // Accumulate into feature entry
+      featureEntry.nodeIds.push(...scenEntry.nodeIds.filter(id => !featureEntry.nodeIds.includes(id)));
+      featureEntry.edgeIds.push(...scenEntry.edgeIds.filter(id => !featureEntry.edgeIds.includes(id)));
     });
+
+    subtreeMap[featureNodeId] = featureEntry;
   }
 
   // Apply Dagre auto-layout
@@ -190,6 +224,7 @@ export function buildVisualizationGraph(
     nodes,
     edges,
     commonActions,
+    subtreeMap,
     metadata: {
       parsedAt: Date.now(),
       fileCount: features.length,

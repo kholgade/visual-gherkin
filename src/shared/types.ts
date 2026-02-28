@@ -55,10 +55,18 @@ export interface FlowEdge {
   };
 }
 
+/** Pre-built subtree for a node (scenario or feature) — nodeIds and edgeIds in traversal order */
+export interface SubtreeEntry {
+  nodeIds: string[];
+  edgeIds: string[];
+}
+
 export interface VisualizationGraph {
   nodes: FlowNode[];
   edges: FlowEdge[];
   commonActions: ActionStep[];
+  /** Keyed by scenario or feature node ID → its exact subtree (nodes + edges) */
+  subtreeMap: Record<string, SubtreeEntry>;
   metadata: {
     parsedAt: number;
     fileCount: number;
