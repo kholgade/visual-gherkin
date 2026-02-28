@@ -253,6 +253,19 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
           style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}
         />
       </ReactFlow>
+      <div style={{
+        position: 'absolute', top: 16, left: 16, zIndex: 10,
+        display: 'flex', alignItems: 'center', gap: 6,
+        background: 'white', borderRadius: 8, padding: '5px 10px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+        border: '1px solid #e5e7eb',
+        pointerEvents: 'none',
+      }}>
+        <span style={{ fontSize: 15 }}>🌿</span>
+        <span style={{ fontWeight: 700, fontSize: 13, color: '#4c1d95', letterSpacing: '0.3px' }}>Visual</span>
+        <span style={{ fontWeight: 400, fontSize: 13, color: '#6b7280' }}>Gherkin</span>
+      </div>
+
       <div className="canvas-overlay">
         <ControlPanel
           graph={graph}

@@ -3,13 +3,21 @@
   "version": "1.0.0",
   "description": "Visualize Gherkin/feature files as interactive metro-style maps",
   "main": "dist/server/index.js",
+  "bin": "dist/server/index.js",
   "scripts": {
-    "start-dev": "lsof -ti:3001,5173 | xargs kill -9 2>/dev/null; npm run build && npm start",
+    "start-dev": "lsof -ti:17771,18881 | xargs kill -9 2>/dev/null; npm run build && npm start",
     "dev": "concurrently \"tsc && nodemon dist/server/index.js\" \"vite\"",
     "clean": "rm -rf dist && find src \\( -name '*.js' -o -name '*.js.map' -o -name '*.d.ts' -o -name '*.d.ts.map' \\) | xargs rm -f",
     "build": "npm run clean && tsc && vite build",
     "start": "node dist/server/index.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:exe": "npm run build && pkg . --out-path bin"
+  },
+  "pkg": {
+    "scripts": "dist/server/**/*.js",
+    "assets": "dist/client/**/*",
+    "targets": ["node20-macos-x64", "node20-linux-x64", "node20-win-x64"],
+    "outputPath": "bin"
   },
   "keywords": [
     "gherkin",
@@ -38,6 +46,7 @@
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^4.2.1",
+    "@yao-pkg/pkg": "^6.14.1",
     "concurrently": "^8.2.2",
     "nodemon": "^3.0.2",
     "playwright": "^1.58.2",

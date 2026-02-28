@@ -13,7 +13,11 @@ import apiRoutes from './routes/api';
 dotenv.config();
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3001', 10);
+// Port resolution: --port flag > PORT env > default 17771
+const argPort = process.argv.indexOf('--port');
+const PORT = argPort !== -1 && process.argv[argPort + 1]
+  ? parseInt(process.argv[argPort + 1], 10)
+  : parseInt(process.env.PORT || '17771', 10);
 
 // Middleware
 app.use(cors());
@@ -22,7 +26,8 @@ app.use(express.json());
 // API routes
 app.use('/api', apiRoutes);
 
-// Serve static frontend files in production
+// Serve static frontend files
+// __dirname resolves correctly both in Node and inside a pkg binary snapshot
 const clientPath = path.join(__dirname, '../client');
 app.use(express.static(clientPath));
 
