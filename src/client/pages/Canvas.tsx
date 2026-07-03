@@ -13,16 +13,18 @@ import 'reactflow/dist/style.css';
 import { VisualizationGraph } from '@shared/types';
 import { nodeTypes } from '@client/components/nodes';
 import { ControlPanel } from '@client/components/ControlPanel';
+import { InsightsPanel } from '@client/components/InsightsPanel';
 import { computeVisibility } from '@client/utils/collapseUtils';
 import { computeLayout } from '@client/utils/layoutUtils';
 import { useUndoHistory, CanvasSnapshot } from '@client/utils/useUndoHistory';
 
 interface CanvasProps {
   graph: VisualizationGraph;
+  onGraphReplaced: (graph: VisualizationGraph) => void;
 }
 
 /** Inner component — must be inside ReactFlowProvider to use useReactFlow */
-const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
+const CanvasInner: React.FC<CanvasProps> = ({ graph, onGraphReplaced }) => {
   const safeNodes = graph?.nodes ?? [];
   const safeEdges = graph?.edges ?? [];
   const { fitView } = useReactFlow();
@@ -50,6 +52,17 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
   const [highlightType, setHighlightType] = useState<string | null>(null);
   const [subtreeRoot, setSubtreeRoot] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  /** Focus a node from the Insights panel: select, highlight subtree, pan to it. */
+  const focusNode = useCallback((id: string) => {
+    setSelectedNodeId(id);
+    const kind = id.split('::', 1)[0];
+    setSubtreeRoot(graph.subtreeMap?.[id] ? id : null);
+    if (kind === 'step') setSubtreeRoot(null);
+    setHighlightType(null);
+    requestAnimationFrame(() => fitView({ duration: 400, nodes: [{ id }], maxZoom: 1.2 }));
+  }, [graph, fitView]);
 
   /** Lookup subtree directly from pre-built map — O(1), no graph traversal */
   const subtreeEntry = subtreeRoot ? (graph.subtreeMap?.[subtreeRoot] ?? null) : null;
@@ -63,6 +76,7 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
         setHighlightType(null);
         setSubtreeRoot(null);
         setSearchQuery('');
+        setSelectedNodeId(null);
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -76,6 +90,10 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
   const onNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSubtreeRoot(prev => prev === node.id ? null : node.id);
     setHighlightType(null);
+  }, []);
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setSelectedNodeId(prev => prev === node.id ? null : node.id);
   }, []);
 
   const onHighlightType = useCallback((type: string | null) => {
@@ -190,6 +208,8 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
         style = isSearchMatch
           ? { outline: '3px solid #10b981', borderRadius: 10, outlineOffset: 2 }
           : { opacity: 0.2 };
+      } else if (selectedNodeId && n.id === selectedNodeId) {
+        style = { outline: '3px solid #7c3aed', borderRadius: 10, outlineOffset: 2 };
       }
 
       return {
@@ -216,7 +236,7 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
     });
 
     return { displayNodes, displayEdges };
-  }, [flowNodes, safeNodes, safeEdges, collapsedIds, toggleCollapse, highlightType, subtreeNodeIds, subtreeEdgeIds, sharedStepIds, searchMatchIds]);
+  }, [flowNodes, safeNodes, safeEdges, collapsedIds, toggleCollapse, highlightType, subtreeNodeIds, subtreeEdgeIds, sharedStepIds, searchMatchIds, selectedNodeId]);
 
   return (
     <div className="canvas-container">
@@ -224,6 +244,7 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
         nodes={displayNodes}
         edges={displayEdges}
         onNodesChange={onNodesChange}
+        onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
         onNodeDragStop={onNodeDragStop}
         nodeTypes={nodeTypes}
@@ -281,6 +302,13 @@ const CanvasInner: React.FC<CanvasProps> = ({ graph }) => {
           searchMatchCount={searchMatchIds?.size ?? 0}
         />
       </div>
+
+      <InsightsPanel
+        graph={graph}
+        selectedNodeId={selectedNodeId}
+        onFocusNode={focusNode}
+        onGraphReplaced={onGraphReplaced}
+      />
     </div>
   );
 };

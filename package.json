@@ -16,7 +16,11 @@
   "pkg": {
     "scripts": "dist/server/**/*.js",
     "assets": "dist/client/**/*",
-    "targets": ["node20-macos-x64", "node20-linux-x64", "node20-win-x64"],
+    "targets": [
+      "node20-macos-x64",
+      "node20-linux-x64",
+      "node20-win-x64"
+    ],
     "outputPath": "bin"
   },
   "keywords": [
@@ -28,6 +32,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@cucumber/cucumber-expressions": "^20.0.0",
+    "@cucumber/gherkin": "^41.0.0",
+    "@cucumber/messages": "^33.0.4",
+    "better-sqlite3": "^12.11.1",
     "chokidar": "^3.5.3",
     "cors": "^2.8.5",
     "dagre": "^0.8.5",
