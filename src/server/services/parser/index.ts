@@ -1,191 +1,213 @@
 /**
  * Gherkin parser service
- * Parses .feature files and extracts scenarios, background steps, and steps
+ * Parses .feature files into a normalized model using the official
+ * @cucumber/gherkin AST. Supports Rules, Scenario Outlines, Examples tables,
+ * data tables, doc strings, and tags at every level.
  */
 
 import fs from 'fs';
 import path from 'path';
-import { ParsedFeature, GherkinScenario, GherkinStep } from '../../../shared/types';
+import crypto from 'crypto';
+import { Parser, AstBuilder, GherkinClassicTokenMatcher } from '@cucumber/gherkin';
+import { IdGenerator } from '@cucumber/messages';
+import {
+  ParsedFeature,
+  GherkinScenario,
+  GherkinStep,
+  ExampleTable,
+  StepKeywordType,
+} from '../../../shared/types';
 
-/**
- * Simple gherkin parser using regex
- * Handles Feature, Background, Scenario, Scenario Outline, and step keywords
- */
-function simpleParseFeature(content: string): {
-  featureName: string;
-  background: GherkinStep[];
-  scenarios: GherkinScenario[];
-} {
-  const lines = content.split('\n');
-  let featureName = 'Unnamed Feature';
-  const scenarios: GherkinScenario[] = [];
-  const background: GherkinStep[] = [];
-  let currentScenario: GherkinScenario | null = null;
-  let inBackground = false;
-  let scenarioLine = 0;
+function newParser(): Parser<any> {
+  return new Parser(new AstBuilder(IdGenerator.uuid()), new GherkinClassicTokenMatcher());
+}
 
-  const featureRegex = /^Feature:\s*(.+)$/i;
-  const backgroundRegex = /^Background:/i;
-  const scenarioRegex = /^(?:Scenario|Scenario Outline):\s*(.+)$/i;
-  const stepRegex = /^(Given|When|Then|And|But)\s+(.+)$/i;
-  const tagRegex = /^(@\S+(?:\s+@\S+)*)$/;
+/** Map a Cucumber messages keywordType onto our classification. */
+function classifyKeywordType(
+  keywordType: string | undefined,
+  previous: StepKeywordType
+): StepKeywordType {
+  switch (keywordType) {
+    case 'Context':
+      return 'Context';
+    case 'Action':
+      return 'Action';
+    case 'Outcome':
+      return 'Outcome';
+    case 'Conjunction':
+      return previous === 'Unknown' ? 'Conjunction' : previous;
+    default:
+      return 'Unknown';
+  }
+}
 
-  let pendingTags: string[] = [];
+function tableToRows(table: any): string[][] {
+  if (!table || !Array.isArray(table.rows)) return [];
+  return table.rows.map((row: any) => row.cells.map((cell: any) => cell.value));
+}
 
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+function convertSteps(rawSteps: any[]): GherkinStep[] {
+  const steps: GherkinStep[] = [];
+  let previousType: StepKeywordType = 'Unknown';
 
-    // Collect tags for next scenario
-    const tagMatch = trimmed.match(tagRegex);
-    if (tagMatch) {
-      pendingTags = pendingTags.concat(trimmed.split(/\s+/).filter((t) => t.startsWith('@')));
-      continue;
+  for (const raw of rawSteps) {
+    const keywordType = classifyKeywordType(raw.keywordType, previousType);
+    if (keywordType !== 'Conjunction' && keywordType !== 'Unknown') {
+      previousType = keywordType;
     }
 
-    const featureMatch = trimmed.match(featureRegex);
-    if (featureMatch) {
-      featureName = featureMatch[1].trim();
-      pendingTags = [];
-      continue;
+    const step: GherkinStep = {
+      type: (raw.keyword || '').trim(),
+      keywordType,
+      text: (raw.text || '').trim(),
+      line: raw.location?.line ?? 0,
+    };
+
+    if (raw.dataTable) {
+      step.dataTable = tableToRows(raw.dataTable);
+    }
+    if (raw.docString) {
+      step.docString = raw.docString.content ?? '';
     }
 
-    const backgroundMatch = trimmed.match(backgroundRegex);
-    if (backgroundMatch) {
-      if (currentScenario && currentScenario.steps.length > 0) {
-        scenarios.push(currentScenario);
-        currentScenario = null;
-      }
-      inBackground = true;
-      pendingTags = [];
-      continue;
-    }
-
-    const scenarioMatch = trimmed.match(scenarioRegex);
-    if (scenarioMatch) {
-      if (currentScenario && currentScenario.steps.length > 0) {
-        scenarios.push(currentScenario);
-      }
-      inBackground = false;
-      scenarioLine = i + 1;
-      currentScenario = {
-        name: scenarioMatch[1].trim(),
-        steps: [],
-        line: scenarioLine,
-        tags: pendingTags,
-      };
-      pendingTags = [];
-      continue;
-    }
-
-    const stepMatch = trimmed.match(stepRegex);
-    if (stepMatch) {
-      const step: GherkinStep = {
-        type: stepMatch[1] as GherkinStep['type'],
-        text: stepMatch[2].trim(),
-        line: i + 1,
-      };
-
-      if (inBackground) {
-        background.push(step);
-      } else if (currentScenario) {
-        currentScenario.steps.push(step);
-      }
-    }
+    steps.push(step);
   }
 
-  if (currentScenario && currentScenario.steps.length > 0) {
-    scenarios.push(currentScenario);
-  }
+  return steps;
+}
 
-  return { featureName, background, scenarios };
+function convertExamples(rawExamples: any[]): ExampleTable[] {
+  if (!Array.isArray(rawExamples)) return [];
+  return rawExamples.map((ex) => {
+    const header: string[] = ex.tableHeader
+      ? ex.tableHeader.cells.map((c: any) => c.value)
+      : [];
+    const rows: string[][] = Array.isArray(ex.tableBody)
+      ? ex.tableBody.map((r: any) => r.cells.map((c: any) => c.value))
+      : [];
+    return {
+      name: (ex.name || '').trim(),
+      tags: (ex.tags || []).map((t: any) => t.name),
+      header,
+      rows,
+      line: ex.location?.line ?? 0,
+    };
+  });
+}
+
+function convertScenario(raw: any, ruleName?: string): GherkinScenario {
+  return {
+    name: (raw.name || '').trim(),
+    steps: convertSteps(raw.steps || []),
+    line: raw.location?.line ?? 0,
+    tags: (raw.tags || []).map((t: any) => t.name),
+    examples: convertExamples(raw.examples || []),
+    rule: ruleName,
+  };
 }
 
 /**
- * Parse a single .feature file
- * Returns structured feature data with background steps, scenarios, and steps
+ * Parse feature content (already read from disk or a git object) into the model.
+ * The virtual path is recorded as the feature's file.
  */
-export function parseFeatureFile(filePath: string): ParsedFeature | null {
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const parsed = simpleParseFeature(content);
-
-    if (parsed.scenarios.length === 0 && parsed.background.length === 0) {
-      return null;
-    }
-
-    return {
-      file: filePath,
-      feature: parsed.featureName,
-      background: parsed.background,
-      scenarios: parsed.scenarios as GherkinScenario[],
-    };
-  } catch (error) {
-    console.error(`Error parsing feature file ${filePath}:`, error);
+export function parseFeatureContent(content: string, virtualPath: string): ParsedFeature | null {
+  const document = newParser().parse(content);
+  const feature = document.feature;
+  if (!feature) {
     return null;
   }
+
+  const scenarios: GherkinScenario[] = [];
+  let background: GherkinStep[] = [];
+  let backgroundLine = 0;
+
+  const consumeChild = (child: any, ruleName?: string) => {
+    if (child.background) {
+      background = convertSteps(child.background.steps || []);
+      backgroundLine = child.background.location?.line ?? 0;
+    } else if (child.scenario) {
+      scenarios.push(convertScenario(child.scenario, ruleName));
+    }
+  };
+
+  for (const child of feature.children || []) {
+    if (child.rule) {
+      const ruleName = (child.rule.name || '').trim();
+      for (const ruleChild of child.rule.children || []) {
+        consumeChild(ruleChild, ruleName);
+      }
+    } else {
+      consumeChild(child);
+    }
+  }
+
+  if (scenarios.length === 0 && background.length === 0) {
+    return null;
+  }
+
+  return {
+    file: virtualPath,
+    feature: (feature.name || '').trim(),
+    description: (feature.description || '').trim(),
+    language: feature.language || 'en',
+    tags: (feature.tags || []).map((t: any) => t.name),
+    background,
+    backgroundLine,
+    scenarios,
+    line: feature.location?.line ?? 0,
+  };
 }
 
 /**
- * Parse all .feature files in a directory
- * Returns array of parsed features
+ * Parse a single .feature file from disk.
+ */
+export function parseFeatureFile(filePath: string): ParsedFeature | null {
+  return parseFeatureContent(fs.readFileSync(filePath, 'utf-8'), filePath);
+}
+
+function listFeatureFiles(dirPath: string): string[] {
+  const result: string[] = [];
+  const entries = fs.readdirSync(dirPath, { recursive: true }) as string[];
+  for (const entry of entries) {
+    const filePath = path.join(dirPath, entry);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(filePath);
+    } catch {
+      continue;
+    }
+    if (stat.isFile() && filePath.endsWith('.feature')) {
+      result.push(filePath);
+    }
+  }
+  return result;
+}
+
+/**
+ * Parse all .feature files in a directory (recursive).
  */
 export function parseDirectory(dirPath: string): ParsedFeature[] {
   const features: ParsedFeature[] = [];
-
-  try {
-    const files = fs.readdirSync(dirPath, { recursive: true });
-
-    for (const file of files) {
-      const filePath = path.join(dirPath, file as string);
-      const stat = fs.statSync(filePath);
-
-      if (stat.isFile() && filePath.endsWith('.feature')) {
-        const parsed = parseFeatureFile(filePath);
-        if (parsed) {
-          features.push(parsed);
-        }
-      }
+  for (const filePath of listFeatureFiles(dirPath)) {
+    const parsed = parseFeatureFile(filePath);
+    if (parsed) {
+      features.push(parsed);
     }
-  } catch (error) {
-    console.error(`Error reading directory ${dirPath}:`, error);
   }
-
   return features;
 }
 
-/**
- * Calculate hash of a file for delta detection
- */
+/** Calculate content hash of a file for delta detection. */
 export function getFileHash(filePath: string): string {
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const crypto = require('crypto');
-    return crypto.createHash('md5').update(content).digest('hex');
-  } catch {
-    return '';
-  }
+  const content = fs.readFileSync(filePath, 'utf-8');
+  return crypto.createHash('md5').update(content).digest('hex');
 }
 
-/**
- * Get hashes of all .feature files in directory
- */
+/** Get hashes of all .feature files in directory. */
 export function getDirectoryHashes(dirPath: string): Record<string, string> {
   const hashes: Record<string, string> = {};
-
-  try {
-    const files = fs.readdirSync(dirPath, { recursive: true });
-
-    for (const file of files) {
-      const filePath = path.join(dirPath, file as string);
-      const stat = fs.statSync(filePath);
-
-      if (stat.isFile() && filePath.endsWith('.feature')) {
-        hashes[filePath] = getFileHash(filePath);
-      }
-    }
-  } catch (error) {
-    console.error(`Error getting hashes for directory ${dirPath}:`, error);
+  for (const filePath of listFeatureFiles(dirPath)) {
+    hashes[filePath] = getFileHash(filePath);
   }
-
   return hashes;
 }
