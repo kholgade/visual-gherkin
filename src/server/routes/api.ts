@@ -11,11 +11,15 @@ import { graphStore } from '../graph/store';
 import { previewRefactor, applyRefactor } from '../services/refactor';
 import { buildHistory } from '../services/history';
 import { fileWatcher } from '../services/fileWatcher';
+import { isConfigured, statusModel, statusBaseURL, resolveConfig } from '../services/ai/config';
+import { runAgent } from '../services/ai/agent';
 import {
   LoadDirRequest,
   LoadDirResponse,
   RefactorRequest,
   QueryRequest,
+  AiChatRequest,
+  AiStatus,
 } from '../../shared/types';
 
 const router = express.Router();
@@ -139,6 +143,51 @@ router.get('/history', (req, res) => {
     res.json({ diffs: buildHistory(dir, limit) });
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'History failed' });
+  }
+});
+
+router.get('/ai/status', (_req, res) => {
+  res.json({
+    configured: isConfigured(),
+    model: statusModel(),
+    baseURL: statusBaseURL(),
+  } as AiStatus);
+});
+
+router.post('/ai/chat', async (req, res) => {
+  const body = req.body as AiChatRequest;
+  if (!Array.isArray(body.messages) || body.messages.length === 0) {
+    return res.status(400).json({ error: 'messages are required' });
+  }
+
+  let config;
+  try {
+    config = resolveConfig({ baseURL: body.baseURL, model: body.model });
+  } catch (error) {
+    return res.status(400).json({ error: error instanceof Error ? error.message : 'AI not configured' });
+  }
+
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  res.flushHeaders();
+
+  const send = (event: string, data: unknown) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    await runAgent(config, body.messages, body.nodeId, {
+      onContent: (delta) => send('token', { delta }),
+      onToolCall: (name, args) => send('tool', { name, args }),
+    });
+    send('done', {});
+  } catch (error) {
+    send('error', { message: error instanceof Error ? error.message : 'chat failed' });
+  } finally {
+    res.end();
   }
 });
 

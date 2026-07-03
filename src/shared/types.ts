@@ -285,3 +285,25 @@ export interface FileUpdateNotification {
   type: 'file-added' | 'file-deleted' | 'file-modified';
   path: string;
 }
+
+/** ----- LLM integration (OpenAI-compatible) ----- */
+
+export interface AiMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+}
+
+export interface AiStatus {
+  configured: boolean;
+  model: string;
+  baseURL: string;
+}
+
+export interface AiChatRequest {
+  messages: AiMessage[];
+  /** Optional graph node whose context is injected to ground the answer. */
+  nodeId?: string;
+  /** Optional per-request provider overrides (non-secret). */
+  model?: string;
+  baseURL?: string;
+}
