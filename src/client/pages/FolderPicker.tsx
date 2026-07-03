@@ -19,6 +19,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
   loading,
 }) => {
   const [dirPath, setDirPath] = useState('');
+  const [gluePath, setGluePath] = useState('');
 
   const handleLoadDirectory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,7 +30,7 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
     }
 
     try {
-      const graph = await loadDirectory(dirPath);
+      const graph = await loadDirectory(dirPath.trim(), gluePath.trim() || undefined);
       onLoadComplete(graph);
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Failed to load directory');
@@ -56,6 +57,18 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
             disabled={loading}
             autoFocus
           />
+          <label htmlFor="glueInput" className="label">
+            Step-definition (glue) directory — optional:
+          </label>
+          <input
+            id="glueInput"
+            type="text"
+            value={gluePath}
+            onChange={(e) => setGluePath(e.target.value)}
+            placeholder="/path/to/step_definitions"
+            className="input"
+            disabled={loading}
+          />
           <button
             type="submit"
             className="button button-primary"
@@ -67,8 +80,8 @@ export const FolderPicker: React.FC<FolderPickerProps> = ({
 
         <div className="info">
           <p>📁 Select a directory containing <code>.feature</code> files</p>
-          <p>📊 The app will analyze scenarios and show their relationships</p>
-          <p>💾 A cache file will be created for faster reloads</p>
+          <p>🔗 Add a glue directory to link steps to their definitions</p>
+          <p>📊 Impact, health, duplicates, refactors and history unlock once loaded</p>
         </div>
       </div>
     </div>

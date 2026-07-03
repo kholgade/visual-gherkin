@@ -42,6 +42,18 @@ export const StepNode: React.FC<NodeProps> = ({ data }) => {
         whiteSpace: 'nowrap',
       }}>{keyword}</span>
       <span style={{ fontSize: 10, color: '#374151', lineHeight: 1.3 }}>{data.text}</span>
+      {data.matched === false && (
+        <span
+          title="No step definition matches this step"
+          style={{ color: '#dc2626', fontSize: 11, fontWeight: 700, marginLeft: 2 }}
+        >⚠</span>
+      )}
+      {data.matched === true && (
+        <span
+          title="Backed by a step definition"
+          style={{ color: '#16a34a', fontSize: 10, marginLeft: 2 }}
+        >●</span>
+      )}
       <Handle type="source" position={Position.Right} />
     </div>
   );
