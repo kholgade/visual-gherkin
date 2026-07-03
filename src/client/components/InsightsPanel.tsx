@@ -4,7 +4,7 @@
  * preview/apply, and Git history. Selecting a result focuses it on the canvas.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   VisualizationGraph,
   ImpactResult,
@@ -14,10 +14,12 @@ import {
   RefactorPreview,
   HistoryDiffEntry,
   StepKeywordType,
+  AiStatus,
+  AiMessage,
 } from '@shared/types';
 import * as api from '@client/services/api';
 
-type Tab = 'impact' | 'health' | 'duplicates' | 'query' | 'refactor' | 'history';
+type Tab = 'impact' | 'health' | 'duplicates' | 'query' | 'refactor' | 'history' | 'ai';
 
 interface InsightsPanelProps {
   graph: VisualizationGraph;
@@ -37,7 +39,18 @@ const TABS: Array<{ key: Tab; label: string }> = [
   { key: 'query', label: 'Query' },
   { key: 'refactor', label: 'Refactor' },
   { key: 'history', label: 'History' },
+  { key: 'ai', label: 'Ask AI' },
 ];
+
+const quickBtn: React.CSSProperties = {
+  fontSize: 10,
+  padding: '3px 6px',
+  borderRadius: 5,
+  border: '1px solid #c7d2fe',
+  background: '#eef2ff',
+  color: '#3730a3',
+  cursor: 'pointer',
+};
 
 const cellBtn: React.CSSProperties = {
   display: 'block',
@@ -76,6 +89,15 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
   const [newText, setNewText] = useState('');
   const [preview, setPreview] = useState<RefactorPreview | null>(null);
 
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [aiMessages, setAiMessages] = useState<AiMessage[]>([]);
+  const [aiInput, setAiInput] = useState('');
+  const [aiStreaming, setAiStreaming] = useState(false);
+  const [aiPartial, setAiPartial] = useState('');
+  const [aiTools, setAiTools] = useState<string[]>([]);
+  const aiBufferRef = useRef('');
+  const aiAbortRef = useRef<(() => void) | null>(null);
+
   const wrap = useCallback(async (fn: () => Promise<void>) => {
     setError(null);
     try {
@@ -93,6 +115,40 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
     }
     wrap(async () => setImpact(await api.getImpact(selectedNodeId)));
   }, [tab, selectedNodeId, graph, wrap]);
+
+  const loadAiStatus = () => wrap(async () => setAiStatus(await api.getAiStatus()));
+
+  const sendAi = useCallback((text: string) => {
+    if (!text.trim() || aiStreaming) return;
+    const history: AiMessage[] = [...aiMessages, { role: 'user', content: text.trim() }];
+    setAiMessages(history);
+    setAiInput('');
+    setAiPartial('');
+    setAiTools([]);
+    setError(null);
+    aiBufferRef.current = '';
+    setAiStreaming(true);
+
+    aiAbortRef.current = api.streamAiChat(
+      { messages: history, nodeId: selectedNodeId ?? undefined },
+      {
+        onToken: (delta) => {
+          aiBufferRef.current += delta;
+          setAiPartial(aiBufferRef.current);
+        },
+        onToolCall: (name) => setAiTools((prev) => [...prev, name]),
+        onDone: () => {
+          setAiMessages((prev) => [...prev, { role: 'assistant', content: aiBufferRef.current }]);
+          setAiPartial('');
+          setAiStreaming(false);
+        },
+        onError: (message) => {
+          setError(message);
+          setAiStreaming(false);
+        },
+      }
+    );
+  }, [aiMessages, aiStreaming, selectedNodeId]);
 
   const loadHealth = () => wrap(async () => setHealth(await api.getHealth()));
   const loadDuplicates = () =>
@@ -171,6 +227,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
               if (t.key === 'health') loadHealth();
               if (t.key === 'duplicates') loadDuplicates();
               if (t.key === 'history') loadHistory();
+              if (t.key === 'ai' && !aiStatus) loadAiStatus();
             }}
             style={{
               fontSize: 11, padding: '3px 7px', borderRadius: 5, cursor: 'pointer',
@@ -283,6 +340,60 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {tab === 'ai' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {aiStatus && !aiStatus.configured && (
+              <p style={{ color: '#b45309', fontSize: 11 }}>
+                No model configured. Set <code>AI_BASE_URL</code> and <code>AI_MODEL</code> (and <code>AI_API_KEY</code> for hosted providers) in the server environment — any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, OpenAI) works.
+              </p>
+            )}
+            {aiStatus && aiStatus.configured && (
+              <div style={{ fontSize: 10, color: '#64748b' }}>Model: <b>{aiStatus.model}</b> · grounded on the graph{selectedNodeId ? ' + selected node' : ''}</div>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              <button disabled={!selectedNodeId || aiStreaming} onClick={() => sendAi('Explain the selected node and its blast radius in plain language.')} style={quickBtn}>Explain selected</button>
+              <button disabled={aiStreaming} onClick={() => sendAi('Review the suite health report and list the three most important issues to fix first, with why.')} style={quickBtn}>Top health issues</button>
+              <button disabled={aiStreaming} onClick={() => sendAi('Find steps with no matching step definition and write step-definition stubs for them in JavaScript using @cucumber/cucumber. Do not claim they were applied.')} style={quickBtn}>Glue for unmatched</button>
+              <button disabled={aiStreaming} onClick={() => sendAi('Suggest missing edge-case scenarios based on the existing features. Reference concrete feature names.')} style={quickBtn}>Edge cases</button>
+            </div>
+
+            <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid #eee', borderRadius: 6, padding: 6, background: '#fafafa' }}>
+              {aiMessages.length === 0 && !aiStreaming && <p style={{ color: '#94a3b8', fontSize: 11 }}>Ask about impact, coverage, duplicates, or fixes. The model calls graph tools for exact answers.</p>}
+              {aiMessages.map((m, i) => (
+                <div key={i} style={{ marginBottom: 6 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: m.role === 'user' ? '#4c1d95' : '#0f766e', textTransform: 'uppercase' }}>{m.role}</div>
+                  <div style={{ fontSize: 11, whiteSpace: 'pre-wrap', color: '#334155' }}>{m.content}</div>
+                </div>
+              ))}
+              {aiTools.length > 0 && aiStreaming && (
+                <div style={{ fontSize: 10, color: '#0369a1' }}>⚙ called: {aiTools.join(', ')}</div>
+              )}
+              {aiStreaming && (
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#0f766e', textTransform: 'uppercase' }}>assistant</div>
+                  <div style={{ fontSize: 11, whiteSpace: 'pre-wrap', color: '#334155' }}>{aiPartial || '…'}</div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 4 }}>
+              <input
+                value={aiInput}
+                onChange={(e) => setAiInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') sendAi(aiInput); }}
+                placeholder="Ask about the suite…"
+                disabled={aiStreaming || (aiStatus ? !aiStatus.configured : false)}
+                style={{ flex: 1, padding: 5, border: '1px solid #d1d5db', borderRadius: 5 }}
+              />
+              {aiStreaming ? (
+                <button onClick={() => { aiAbortRef.current?.(); setAiStreaming(false); }} style={{ padding: '5px 10px', borderRadius: 5, border: '1px solid #dc2626', background: '#fee2e2', color: '#dc2626', cursor: 'pointer' }}>Stop</button>
+              ) : (
+                <button onClick={() => sendAi(aiInput)} disabled={!aiInput.trim()} style={{ padding: '5px 10px', borderRadius: 5, border: '1px solid #4c1d95', background: '#4c1d95', color: 'white', cursor: 'pointer' }}>Send</button>
+              )}
+            </div>
           </div>
         )}
 
